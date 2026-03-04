@@ -1,0 +1,167 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<header>
+    <h1>Future Sales Forecasting</h1>
+    <p class="subtitle">Prophet-powered 6-week prediction of total network sales trends</p>
+</header>
+
+<div class="card" style="margin-bottom: 3rem; border-top: 4px solid var(--accent-color);">
+    <div
+        style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <h3 style="font-family: 'Outfit'; display: flex; align-items: center; gap: 10px;">
+                <i data-lucide="bar-chart-3"></i> Network Forecast Model
+            </h3>
+            <p class="subtitle" style="font-size: 0.875rem;">Multi-variate time series analysis</p>
+        </div>
+        <button id="loadForecastBtn">
+            <i data-lucide="play"></i> Run Forecast Analysis
+        </button>
+    </div>
+
+    <div id="loading" style="display: none; text-align: center; padding: 4rem 2rem;">
+        <div class="animate-spin" style="display: inline-block; margin-bottom: 1.5rem;">
+            <i data-lucide="refresh-cw" size="40" style="color: var(--accent-color);"></i>
+        </div>
+        <h3 style="font-family: 'Outfit'; margin-bottom: 0.5rem;">Synthesizing Historical Data</h3>
+        <p class="subtitle">Processing seasonality patterns and holiday effects... (30-45s)</p>
+    </div>
+
+    <div id="chartContainer" style="display: none; height: 500px; width: 100%;">
+        <canvas id="forecastChart"></canvas>
+    </div>
+</div>
+
+<script>
+    document.getElementById('loadForecastBtn').onclick = async (e) => {
+        const btn = e.target.closest('button');
+        const loading = document.getElementById('loading');
+        const chartContainer = document.getElementById('chartContainer');
+        const canvas = document.getElementById('forecastChart');
+
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader-2" class="animate-spin"></i> Processing...';
+        lucide.createIcons();
+
+        loading.style.display = 'block';
+        chartContainer.style.display = 'none';
+
+        try {
+            const response = await fetch('/api/forecast');
+            const data = await response.json();
+
+            loading.style.display = 'none';
+            chartContainer.style.display = 'block';
+
+            const ctx = canvas.getContext('2d');
+
+            // Create gradients
+            const mainGradient = ctx.createLinearGradient(0, 0, 0, 400);
+            mainGradient.addColorStop(0, 'rgba(99, 102, 241, 0.3)');
+            mainGradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
+
+            const rangeGradient = ctx.createLinearGradient(0, 0, 0, 400);
+            rangeGradient.addColorStop(0, 'rgba(99, 102, 241, 0.1)');
+            rangeGradient.addColorStop(1, 'rgba(99, 102, 241, 0.02)');
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => new Date(d.ds).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+                    datasets: [
+                        {
+                            label: 'Predicted Sales',
+                            data: data.map(d => d.yhat),
+                            borderColor: '#6366f1',
+                            borderWidth: 3,
+                            backgroundColor: mainGradient,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 2,
+                            pointHoverRadius: 6,
+                            zIndex: 10
+                        },
+                        {
+                            label: 'Upper Confidence',
+                            data: data.map(d => d.yhat_upper),
+                            borderColor: 'transparent',
+                            backgroundColor: rangeGradient,
+                            fill: '+1',
+                            pointRadius: 0,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Lower Confidence',
+                            data: data.map(d => d.yhat_lower),
+                            borderColor: 'transparent',
+                            fill: false,
+                            pointRadius: 0,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: { color: '#94a3b8', font: { family: 'Inter' } }
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            titleFont: { family: 'Outfit' },
+                            bodyFont: { family: 'Inter' }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: {
+                                color: '#94a3b8',
+                                font: { family: 'Inter' },
+                                callback: (val) => '$' + (val / 1000) + 'k'
+                            }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#94a3b8', font: { family: 'Inter' } }
+                        }
+                    }
+                }
+            });
+        } catch (err) {
+            console.error(err);
+            loading.innerHTML = `
+                <i data-lucide="alert-circle" size="40" style="color: var(--error-color); margin-bottom: 1rem;"></i>
+                <h3 style="color: var(--error-color)">Forecasting Engine Timeout</h3>
+                <p class="subtitle">Please check if Prophet is installed and data is loaded.</p>
+                <button onclick="location.reload()" class="btn-secondary" style="margin-top: 1.5rem;">Retry Analytical Cycle</button>
+            `;
+            lucide.createIcons();
+        } finally {
+            btn.style.display = 'none';
+        }
+    };
+
+    window.onload = () => lucide.createIcons();
+</script>
+<style>
+    .animate-spin {
+        animation: spin 2s linear infinite;
+    }
+
+    @keyframes spin {
+        from {
+            transform: rotate(0deg);
+        }
+
+        to {
+            transform: rotate(360deg);
+        }
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,220 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<header>
+    <h1>Instant Sales Prediction</h1>
+    <p class="subtitle">Comprehensive store parameter analysis using Random Forest</p>
+</header>
+
+<div class="card" style="max-width: 900px; margin: 0 auto 3rem auto; border-left: 4px solid var(--accent-color);">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem;">
+        <div>
+            <h3 style="font-family: 'Outfit'; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="cpu" size="20"></i> Model Engine Status
+            </h3>
+            <p id="modelStatusText" class="subtitle" style="margin-top: 0.5rem; font-size: 0.875rem;">Optimizing
+                prediction engine...</p>
+        </div>
+        <button id="trainModelBtn" class="btn-secondary">
+            <i data-lucide="refresh-cw"></i> Retrain Model
+        </button>
+    </div>
+    <div id="trainProgress" style="display: none; margin-top: 1.5rem;">
+        <div style="height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden;">
+            <div id="trainProgressBar"
+                style="width: 0%; height: 100%; background: var(--accent-color); transition: width 0.3s; box-shadow: 0 0 10px var(--accent-glow);">
+            </div>
+        </div>
+        <p id="trainStatusMsg" style="font-size: 0.875rem; margin-top: 0.75rem; color: var(--text-secondary);"></p>
+    </div>
+</div>
+
+<div class="card" style="max-width: 900px; margin: 0 auto 4rem auto;">
+    <h3 style="font-family: 'Outfit'; margin-bottom: 2rem; display: flex; align-items: center; gap: 10px;">
+        <i data-lucide="settings-2"></i> Input Parameters
+    </h3>
+    <form id="predictionForm">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 2rem;">
+            <div class="form-group">
+                <label>Store ID</label>
+                <div style="position: relative;">
+                    <i data-lucide="hash" size="16"
+                        style="position: absolute; left: 12px; top: 14px; color: var(--text-secondary);"></i>
+                    <input type="number" name="Store" value="1" style="padding-left: 2.5rem;" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Day of Week (1-7)</label>
+                <div style="position: relative;">
+                    <i data-lucide="calendar-days" size="16"
+                        style="position: absolute; left: 12px; top: 14px; color: var(--text-secondary);"></i>
+                    <input type="number" name="DayOfWeek" min="1" max="7" value="1" style="padding-left: 2.5rem;"
+                        required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Promo Active?</label>
+                <select name="Promo">
+                    <option value="1">Yes, Active</option>
+                    <option value="0">No Promo</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>State Holiday</label>
+                <select name="StateHoliday">
+                    <option value="0">None</option>
+                    <option value="a">Public Holiday</option>
+                    <option value="b">Easter Holiday</option>
+                    <option value="c">Christmas</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>School Holiday</label>
+                <select name="SchoolHoliday">
+                    <option value="1">Yes</option>
+                    <option value="0">No</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Competition Distance (m)</label>
+                <input type="number" name="CompetitionDistance" value="1270">
+            </div>
+            <div class="form-group">
+                <label>Year</label>
+                <input type="number" name="Year" value="2026">
+            </div>
+            <div class="form-group">
+                <label>Month</label>
+                <input type="number" name="Month" min="1" max="12" value="3">
+            </div>
+            <div class="form-group">
+                <label>Day</label>
+                <input type="number" name="Day" min="1" max="31" value="1">
+            </div>
+            <input type="hidden" name="StoreType" value="c">
+            <input type="hidden" name="Assortment" value="a">
+        </div>
+
+        <div style="margin-top: 3rem; display: flex; flex-direction: column; align-items: center; gap: 2rem;">
+            <button type="submit" id="predictBtn" style="padding: 1.25rem 3rem; font-size: 1.125rem;">
+                <i data-lucide="zap"></i> Calculate Expected Revenue
+            </button>
+            <div id="predictionResult" class="prediction-display" style="width: 100%; max-width: 400px; display: none;">
+                <p
+                    style="font-size: 0.875rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.1em;">
+                    Predicted Sales</p>
+                <span id="predictionValue" class="prediction-value">$0.00</span>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+    async function updateModelStatus() {
+        try {
+            const res = await fetch('/api/model_status');
+            const data = await res.json();
+            const statusText = document.getElementById('modelStatusText');
+            if (data.trained) {
+                const date = new Date(data.last_trained * 1000).toLocaleString();
+                statusText.innerHTML = `<span style="color: var(--success-color); font-weight: 700;">● SYSTEM OPERATIONAL</span> (Synced: ${date})`;
+            } else {
+                statusText.innerHTML = `<span style="color: var(--error-color); font-weight: 700;">● ENGINE OFFLINE</span> (Model training required)`;
+            }
+        } catch (e) {
+            console.error('Failed to fetch model status', e);
+        }
+    }
+
+    document.getElementById('trainModelBtn').onclick = async () => {
+        const btn = document.getElementById('trainModelBtn');
+        const progressDiv = document.getElementById('trainProgress');
+        const progressBar = document.getElementById('trainProgressBar');
+        const statusMsg = document.getElementById('trainStatusMsg');
+
+        btn.disabled = true;
+        progressDiv.style.display = 'block';
+        progressBar.style.width = '30%';
+        statusMsg.innerText = 'Analyzing historical patterns...';
+
+        try {
+            const response = await fetch('/api/train');
+            if (response.ok) {
+                progressBar.style.width = '100%';
+                statusMsg.innerText = 'Optimizer successfully trained!';
+                setTimeout(() => {
+                    progressDiv.style.display = 'none';
+                    btn.disabled = false;
+                    updateModelStatus();
+                }, 2000);
+            } else {
+                throw new Error('Training failed');
+            }
+        } catch (e) {
+            statusMsg.innerText = 'Engine failure during training cycle.';
+            statusMsg.style.color = 'var(--error-color)';
+            btn.disabled = false;
+        }
+    };
+
+    document.getElementById('predictionForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('predictBtn');
+        const resultDiv = document.getElementById('predictionResult');
+        const valueSpan = document.getElementById('predictionValue');
+
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader-2" class="animate-spin"></i> Processing Model Matrix...';
+        lucide.createIcons();
+        resultDiv.style.display = 'none';
+
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData.entries());
+
+        ['Store', 'DayOfWeek', 'Promo', 'SchoolHoliday', 'CompetitionDistance', 'Year', 'Month', 'Day'].forEach(key => {
+            data[key] = parseFloat(data[key]);
+        });
+
+        try {
+            const response = await fetch('/api/predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+            valueSpan.innerText = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(result.prediction);
+            resultDiv.style.display = 'block';
+            resultDiv.style.animation = 'fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1)';
+        } catch (e) {
+            valueSpan.innerText = 'System Error';
+            valueSpan.style.color = 'var(--error-color)';
+            resultDiv.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="zap"></i> Calculate Expected Revenue';
+            lucide.createIcons();
+        }
+    };
+
+    window.onload = () => {
+        updateModelStatus();
+        lucide.createIcons();
+    };
+</script>
+<style>
+    .animate-spin {
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        from {
+            transform: rotate(0deg);
+        }
+
+        to {
+            transform: rotate(360deg);
+        }
+    }
+</style>
+{% endblock %}

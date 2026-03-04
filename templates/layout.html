@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rossmann Sales Analytics</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='index.css') }}">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body>
+    <nav class="sidebar">
+        <div class="logo">
+            <i data-lucide="trending-up"></i>
+            <span>Rossmann <span>Sales</span></span>
+        </div>
+        <ul class="nav-links">
+            <li>
+                <a href="/" class="{{ 'active' if request.path == '/' else '' }}">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
+                </a>
+            </li>
+            <li>
+                <a href="/predict_page" class="{{ 'active' if request.path == '/predict_page' else '' }}">
+                    <i data-lucide="zap"></i>
+                    <span>Predict</span>
+                </a>
+            </li>
+            <li>
+                <a href="/forecast_page" class="{{ 'active' if request.path == '/forecast_page' else '' }}">
+                    <i data-lucide="bar-chart-3"></i>
+                    <span>Forecast</span>
+                </a>
+            </li>
+        </ul>
+
+        <div style="margin-top: auto;">
+            <div class="card"
+                style="padding: 1rem; background: rgba(255,255,255,0.03); border: 1px dashed var(--border-color);">
+                <p style="font-size: 0.75rem; color: var(--text-secondary);">Model Status</p>
+                <div id="layoutModelStatus" style="font-size: 0.875rem; font-weight: 600; margin-top: 0.25rem;">
+                    Checking...
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        // Check model status globally
+        async function checkGlobalModelStatus() {
+            try {
+                const res = await fetch('/api/model_status');
+                const data = await res.json();
+                const statusDiv = document.getElementById('layoutModelStatus');
+                if (data.trained) {
+                    statusDiv.innerHTML = '<span style="color: var(--success-color)">● Ready</span>';
+                } else {
+                    statusDiv.innerHTML = '<span style="color: var(--error-color)">● No Model</span>';
+                }
+            } catch (e) {
+                console.error('Failed to check status', e);
+            }
+        }
+        checkGlobalModelStatus();
+    </script>
+</body>
+
+</html>

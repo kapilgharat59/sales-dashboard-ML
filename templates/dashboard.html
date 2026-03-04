@@ -1,0 +1,232 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<header>
+    <h1>Sales Analytics Dashboard</h1>
+    <p class="subtitle">Intelligent insights and predictive modeling for Rossmann stores</p>
+</header>
+
+<div class="kpi-grid">
+    <div class="card kpi-card">
+        <div class="label">
+            Total Sales
+            <i data-lucide="dollar-sign" size="16"></i>
+        </div>
+        <div class="value" id="kpi-total-sales">$0.00</div>
+        <div class="trend up"><i data-lucide="arrow-up-right"></i> Historical Total</div>
+    </div>
+    <div class="card kpi-card">
+        <div class="label">
+            Avg Daily Sales
+            <i data-lucide="trending-up" size="16"></i>
+        </div>
+        <div class="value" id="kpi-avg-sales">$0.00</div>
+        <div class="trend up"><i data-lucide="arrow-up-right"></i> Per Store</div>
+    </div>
+    <div class="card kpi-card">
+        <div class="label">
+            Total Stores
+            <i data-lucide="store" size="16"></i>
+        </div>
+        <div class="value" id="kpi-total-stores">0</div>
+        <div class="trend"><i data-lucide="check-circle"></i> Active Network</div>
+    </div>
+    <div class="card kpi-card">
+        <div class="label">
+            Avg Customers
+            <i data-lucide="users" size="16"></i>
+        </div>
+        <div class="value" id="kpi-avg-customers">0</div>
+        <div class="trend"><i data-lucide="user-check"></i> Per Store Day</div>
+    </div>
+</div>
+
+<div class="chart-grid">
+    <div class="card chart-container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h3 style="font-family: 'Outfit';">Performance Trends</h3>
+            <span class="status-pill" style="background: rgba(99, 102, 241, 0.1); color: var(--accent-color);">Monthly
+                Data</span>
+        </div>
+        <canvas id="salesTrendChart" style="max-height: 300px;"></canvas>
+    </div>
+
+    <div class="card">
+        <h3 style="font-family: 'Outfit'; margin-bottom: 1.5rem;">Quick Prediction</h3>
+        <p class="subtitle" style="font-size: 0.875rem; margin-bottom: 1.5rem;">Instant sales estimate for current
+            parameters</p>
+
+        <form id="quickPredictForm">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label>Store ID</label>
+                    <input type="number" name="Store" value="1" required>
+                </div>
+                <div class="form-group">
+                    <label>Promo Active?</label>
+                    <select name="Promo">
+                        <option value="1">Yes</option>
+                        <option value="0">No</option>
+                    </select>
+                </div>
+            </div>
+            <button type="submit" id="quickPredictBtn" style="width: 100%; margin-top: 1rem;">
+                <i data-lucide="zap"></i> Predict Sales
+            </button>
+        </form>
+
+        <div id="quickPredictResult" class="prediction-display" style="margin-top: 2rem; display: none;">
+            <span style="font-size: 0.875rem; color: var(--text-secondary); text-transform: uppercase;">Estimated
+                Revenue</span>
+            <span id="quickPredictValue" class="prediction-value">$0.00</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function loadDashboard() {
+        // Fetch KPI stats
+        try {
+            const statsRes = await fetch('/api/stats');
+            const stats = await statsRes.json();
+
+            document.getElementById('kpi-total-sales').innerText = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(stats.total_sales);
+            document.getElementById('kpi-avg-sales').innerText = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(stats.avg_sales);
+            document.getElementById('kpi-total-stores').innerText = stats.total_stores.toLocaleString();
+            document.getElementById('kpi-avg-customers').innerText = Math.round(stats.avg_customers).toLocaleString();
+        } catch (e) {
+            console.error("Failed to load stats", e);
+        }
+
+        // Fetch Trends data
+        try {
+            const trendRes = await fetch('/api/trends');
+            const trendData = await trendRes.json();
+
+            const ctx = document.getElementById('salesTrendChart').getContext('2d');
+
+            // Create gradient
+            const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+            gradient.addColorStop(0, 'rgba(99, 102, 241, 0.4)');
+            gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: trendData.map(d => {
+                        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                        return months[d.Month - 1];
+                    }),
+                    datasets: [{
+                        label: 'Average Sales',
+                        data: trendData.map(d => d.Sales),
+                        borderColor: '#6366f1',
+                        borderWidth: 3,
+                        backgroundColor: gradient,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#6366f1',
+                        pointBorderColor: 'rgba(255,255,255,0.8)',
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#94a3b8', font: { family: 'Inter' } }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#94a3b8', font: { family: 'Inter' } }
+                        }
+                    }
+                }
+            });
+        } catch (e) {
+            console.error("Failed to load trends", e);
+        }
+
+        // Initialize Icons for new content
+        lucide.createIcons();
+    }
+
+    document.getElementById('quickPredictForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('quickPredictBtn');
+        const resultDiv = document.getElementById('quickPredictResult');
+        const valueSpan = document.getElementById('quickPredictValue');
+
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader-2" class="animate-spin"></i> Calculating...';
+        lucide.createIcons();
+
+        const formData = new FormData(e.target);
+        const inputData = Object.fromEntries(formData.entries());
+
+        // Add default values for missing fields to satisfy the model
+        const now = new Date();
+        const fullData = {
+            ...inputData,
+            DayOfWeek: now.getDay() || 7,
+            StateHoliday: '0',
+            SchoolHoliday: 0,
+            CompetitionDistance: 1270,
+            Year: now.getFullYear(),
+            Month: now.getMonth() + 1,
+            Day: now.getDate(),
+            StoreType: 'a',
+            Assortment: 'a'
+        };
+
+        // Convert to numbers
+        ['Store', 'Promo', 'DayOfWeek', 'SchoolHoliday', 'CompetitionDistance', 'Year', 'Month', 'Day'].forEach(key => {
+            fullData[key] = parseFloat(fullData[key]) || 0;
+        });
+
+        try {
+            const response = await fetch('/api/predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(fullData)
+            });
+
+            const result = await response.json();
+            valueSpan.innerText = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(result.prediction);
+            resultDiv.style.display = 'block';
+            resultDiv.style.animation = 'fadeIn 0.5s ease-out';
+        } catch (e) {
+            valueSpan.innerText = 'Error';
+            valueSpan.style.color = 'var(--error-color)';
+            resultDiv.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="zap"></i> Predict Sales';
+            lucide.createIcons();
+        }
+    };
+
+    window.onload = loadDashboard;
+</script>
+<style>
+    .animate-spin {
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        from {
+            transform: rotate(0deg);
+        }
+
+        to {
+            transform: rotate(360deg);
+        }
+    }
+</style>
+{% endblock %}
